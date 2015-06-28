@@ -148,6 +148,7 @@ static NSOpenGLContext *_context = nil;
 
 @synthesize mouseX, mouseY;
 @synthesize width, height;
+@synthesize autoDraw, needsRedraw;
 
 + (NSOpenGLContext*)sharedContext
 {
@@ -195,6 +196,8 @@ static NSOpenGLContext *_context = nil;
 
 		displayLink = NULL;
 		updateTimer = nil;
+        
+        autoDraw = true;
 
 		if (_context == nil)
 		{
@@ -493,63 +496,69 @@ static CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink,
 
 - (void)drawView
 {
-	if (!initialised) return;
-		
-	if ([self isVisible])
-	{
-		ScopedAutoReleasePool pool;
-		
-		BEGIN_OPENGL();
-		
-		makeCurrentView(self);
+    if (!initialised) return;
+    
+    if ([self isVisible])
+    {
+        ScopedAutoReleasePool pool;
+        
+        {
+            float t = ofGetElapsedTimef();
+            lastFrameTime = t - lastUpdateTime;
+            float d = 1. / lastFrameTime;
+            
+            frameRate += (d - frameRate) * 0.1;
+            
+            lastUpdateTime = t;
+        }
 
-		{
-			float t = ofGetElapsedTimef();
-			lastFrameTime = t - lastUpdateTime;
-			float d = 1. / lastFrameTime;
+        [self update];
+        ofNotifyUpdate();
 
-			frameRate += (d - frameRate) * 0.1;
-
-			lastUpdateTime = t;
-		}
-
-		[self beginWindowEvent];
-		
-		glPushAttrib(GL_ALL_ATTRIB_BITS);
-		glPushMatrix();
-		ofPushStyle();
-		
-		[self update];
-		ofNotifyUpdate();
-		
-		NSRect r = self.bounds;
-		ofViewport(0, 0, r.size.width, r.size.height);
-
-		float *bgPtr = ofBgColorPtr();
-		bool clearAuto = ofbClearBg();
-
-		if (clearAuto || frameCount < 3)
-		{
-			float * bgPtr = ofBgColorPtr();
-			glClearColor(bgPtr[0], bgPtr[1], bgPtr[2], bgPtr[3]);
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		}
-
-		if (enableSetupScreen) ofSetupScreen();
-
-		[self draw];
-		ofNotifyDraw();
-		
-		ofPopStyle();
-		glPopMatrix();
-		glPopAttrib();
-		
-		[self endWindowEvent];
-		
-		glFlush();
-		[[self openGLContext] flushBuffer];
-
-		END_OPENGL();
+        
+        if (autoDraw || needsRedraw){
+            BEGIN_OPENGL();
+            
+            makeCurrentView(self);
+            
+            
+            [self beginWindowEvent];
+            
+            glPushAttrib(GL_ALL_ATTRIB_BITS);
+            glPushMatrix();
+            ofPushStyle();
+            
+            
+            NSRect r = self.bounds;
+            ofViewport(0, 0, r.size.width, r.size.height);
+            
+            float *bgPtr = ofBgColorPtr();
+            bool clearAuto = ofbClearBg();
+            
+            if (clearAuto || frameCount < 3)
+            {
+                float * bgPtr = ofBgColorPtr();
+                glClearColor(bgPtr[0], bgPtr[1], bgPtr[2], bgPtr[3]);
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            }
+            
+            if (enableSetupScreen) ofSetupScreen();
+            
+            [self draw];
+            ofNotifyDraw();
+            
+            ofPopStyle();
+            glPopMatrix();
+            glPopAttrib();
+            
+            [self endWindowEvent];
+            
+            glFlush();
+            [[self openGLContext] flushBuffer];
+            
+            END_OPENGL();
+            needsRedraw = false;
+        }
 	}
 
 	frameCount++;

@@ -32,12 +32,17 @@
 	float width, height;
 	
 	float aspect;
+    
+    BOOL autoDraw;
+    BOOL needsRedraw;
 }
 
 @property (assign, readonly) float mouseX;
 @property (assign, readonly) float mouseY;
 @property (assign, readonly) float width;
 @property (assign, readonly) float height;
+@property (assign, readwrite) BOOL autoDraw;
+@property (assign, readwrite) BOOL needsRedraw;
 
 + (NSOpenGLContext*)sharedContext;
 + (void)lockSharedContext;
