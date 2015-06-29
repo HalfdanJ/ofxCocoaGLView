@@ -15,16 +15,27 @@ CGLUnlockContext(cglContext);
 
 static CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink,  const CVTimeStamp* now, const CVTimeStamp* outputTime, CVOptionFlags flagsIn, CVOptionFlags* flagsOut, void* displayLinkContext);
 
-class ofxCocoaGLViewWindowProxy : public ofAppBaseWindow
+class ofxCocoaGLViewWindowProxy : public ofAppBaseGLWindow
 {
 public:
 
 	ofxCocoaGLView *view;
+    
+    shared_ptr<ofBaseRenderer> currentRenderer;
 
 	ofxCocoaGLViewWindowProxy(ofxCocoaGLView *view_)
 	{
 		view = view_;
+        currentRenderer = shared_ptr<ofBaseRenderer>(new ofGLRenderer(this));
+
 	}
+    
+    static bool doesLoop(){ return true; }
+    static bool allowsMultiWindow(){ return false; }
+    static void loop() {}
+    static bool needsPolling(){ return false; }
+    static void pollEvents(){  }
+
 
 	int getWidth()
 	{
@@ -96,15 +107,47 @@ public:
 	{
 		OFXCOCOAGLVIEW_IGNORED;
 	}
+    
+    void setup(const ofGLWindowSettings & settings){
+    }
+    
+    void update(){
+        
+    }
+    
+    void draw(){
+        
+    }
+    
+    ofCoreEvents coreEvents;
+    
+    ofCoreEvents & events(){
+        return coreEvents;
+    }
+    
+    shared_ptr<ofBaseRenderer> & renderer() {
+        return currentRenderer;
+    }
+    
+   
+    
 };
 
-static ofPtr<ofxCocoaGLViewWindowProxy> window_proxy;
+static shared_ptr<ofxCocoaGLViewWindowProxy> window_proxy;
 
 static void setupWindowProxy(ofxCocoaGLView *view)
 {
 	if (window_proxy) return;
-	window_proxy = ofPtr<ofxCocoaGLViewWindowProxy>(new ofxCocoaGLViewWindowProxy(view));
+	window_proxy = shared_ptr<ofxCocoaGLViewWindowProxy>(new ofxCocoaGLViewWindowProxy(view));
+    
+    
 	ofSetupOpenGL(window_proxy, view.bounds.size.width, view.bounds.size.height, OF_WINDOW);
+    
+    shared_ptr<ofMainLoop> mainLoop = ofGetMainLoop();
+    if(mainLoop){
+        mainLoop->setCurrentWindow(window_proxy);
+    }
+
 }
 
 static void makeCurrentView(ofxCocoaGLView *view)
@@ -303,10 +346,11 @@ static NSOpenGLContext *_context = nil;
 {
 	ScopedAutoReleasePool pool;
 	
-	BEGIN_OPENGL();
+	BEGIN_OPENGL(); 
 	
 	[self setup];
-	ofNotifySetup();
+	window_proxy->events().notifySetup();
+    
 
 	END_OPENGL();
 	
@@ -520,25 +564,30 @@ static CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink,
 		ofPushStyle();
 		
 		[self update];
-		ofNotifyUpdate();
-		
+        window_proxy->events().notifyUpdate();
+
 		NSRect r = self.bounds;
 		ofViewport(0, 0, r.size.width, r.size.height);
 
-		float *bgPtr = ofBgColorPtr();
-		bool clearAuto = ofbClearBg();
+//		float *bgPtr = ofBgColorPtr();
+		bool clearAuto = ofGetBackgroundAuto();
+
 
 		if (clearAuto || frameCount < 3)
 		{
-			float * bgPtr = ofBgColorPtr();
-			glClearColor(bgPtr[0], bgPtr[1], bgPtr[2], bgPtr[3]);
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		//	float * bgPtr = ofBgColorPtr();
+		//	glClearColor(bgPtr[0], bgPtr[1], bgPtr[2], bgPtr[3]);
+		//	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		}
-
+        
+        window_proxy->renderer()->setOrientation(OF_ORIENTATION_DEFAULT, false);
 		if (enableSetupScreen) ofSetupScreen();
+        
+        glScalef(1,-1,1);
+        glTranslatef(0, -r.size.height, 0);
 
 		[self draw];
-		ofNotifyDraw();
+        window_proxy->events().notifyDraw();
 		
 		ofPopStyle();
 		glPopMatrix();
@@ -573,7 +622,8 @@ static CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink,
 	height = r.size.height;
 
 	[self windowResized:r.size];
-	ofNotifyWindowResized(width, height);
+    window_proxy->events().notifyWindowResized(width, height);
+
 
 	if (trackingRectTag)
 	{
@@ -620,8 +670,8 @@ static int conv_button_number(int n)
 
 	int b = conv_button_number([theEvent buttonNumber]);
 	[self mousePressed:p button:b];
-	ofNotifyMousePressed(p.x, p.y, b);
-	
+    window_proxy->events().notifyMousePressed(p.x, p.y, b);
+
 	[self endWindowEvent];
 }
 
@@ -635,8 +685,8 @@ static int conv_button_number(int n)
 
 	int b = conv_button_number([theEvent buttonNumber]);
 	[self mouseDragged:p button:b];
-	ofNotifyMouseDragged(p.x, p.y, b);
-	
+    window_proxy->events().notifyMouseDragged(p.x, p.y, b);
+
 	[self endWindowEvent];
 }
 
@@ -650,7 +700,8 @@ static int conv_button_number(int n)
 
 	int b = conv_button_number([theEvent buttonNumber]);
 	[self mouseReleased:p button:b];
-	ofNotifyMouseReleased(p.x, p.y, b);
+    window_proxy->events().notifyMouseReleased(p.x, p.y, b);
+
 	
 	[self endWindowEvent];
 }
@@ -664,7 +715,8 @@ static int conv_button_number(int n)
 	makeCurrentView(self);
 
 	[self mouseMoved:p];
-	ofNotifyMouseMoved(p.x, p.y);
+    window_proxy->events().notifyMouseMoved(p.x, p.y);
+
 	
 	[self endWindowEvent];
 }
@@ -679,8 +731,8 @@ static int conv_button_number(int n)
 
 	int b = conv_button_number([theEvent buttonNumber]);
 	[self mousePressed:p button:b];
-	ofNotifyMousePressed(p.x, p.y, b);
-	
+    window_proxy->events().notifyMousePressed(p.x, p.y,b);
+
 	[self endWindowEvent];
 }
 
@@ -694,7 +746,8 @@ static int conv_button_number(int n)
 
 	int b = conv_button_number([theEvent buttonNumber]);
 	[self mouseDragged:p button:b];
-	ofNotifyMouseDragged(p.x, p.y, b);
+    window_proxy->events().notifyMouseDragged(p.x, p.y,b);
+
 	
 	[self endWindowEvent];
 }
@@ -709,7 +762,8 @@ static int conv_button_number(int n)
 
 	int b = conv_button_number([theEvent buttonNumber]);
 	[self mouseReleased:p button:b];
-	ofNotifyMouseReleased(p.x, p.y, b);
+    window_proxy->events().notifyMouseReleased(p.x, p.y, b);
+
 	
 	[self endWindowEvent];
 }
@@ -724,7 +778,7 @@ static int conv_button_number(int n)
 
 	int b = conv_button_number([theEvent buttonNumber]);
 	[self mousePressed:p button:b];
-	ofNotifyMousePressed(p.x, p.y, b);
+    window_proxy->events().notifyMousePressed(p.x, p.y, b);
 	
 	[self endWindowEvent];
 }
@@ -739,7 +793,7 @@ static int conv_button_number(int n)
 
 	int b = conv_button_number([theEvent buttonNumber]);
 	[self mouseDragged:p button:b];
-	ofNotifyMouseDragged(p.x, p.y, b);
+    window_proxy->events().notifyMouseDragged(p.x, p.y, b);
 	
 	[self endWindowEvent];
 }
@@ -754,7 +808,7 @@ static int conv_button_number(int n)
 
 	int b = conv_button_number([theEvent buttonNumber]);
 	[self mouseReleased:p button:b];
-	ofNotifyMouseReleased(p.x, p.y, b);
+    window_proxy->events().notifyMouseReleased(p.x, p.y, b);
 	
 	[self endWindowEvent];
 }
@@ -803,7 +857,7 @@ static int conv_button_number(int n)
 	}
 
 	[self keyPressed:key];
-	ofNotifyKeyPressed(key);
+    window_proxy->events().notifyKeyPressed(key);
 	
 	[self endWindowEvent];
 }
@@ -844,7 +898,7 @@ static int conv_button_number(int n)
 	makeCurrentView(self);
 
 	[self keyReleased:key];
-	ofNotifyKeyReleased(key);
+    window_proxy->events().notifyKeyReleased(key);
 	
 	[self endWindowEvent];
 }

@@ -2,7 +2,6 @@
 
 #import <Cocoa/Cocoa.h>
 #import <QuartzCore/CVDisplayLink.h>
-
 @interface ofxCocoaGLView : NSOpenGLView <NSWindowDelegate> {
 	CVDisplayLinkRef displayLink;
 	NSTimer *updateTimer;
@@ -32,6 +31,8 @@
 	float width, height;
 	
 	float aspect;
+    
+
 }
 
 @property (assign, readonly) float mouseX;
